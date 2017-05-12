@@ -28,18 +28,28 @@ print("Input:", x_dimension)
 print("Output:", y_dimension)
 print("\n")
 
-def add_layer(inputs, in_size, out_size, activation_function=None):
+def add_layer(inputs, in_size, out_size, n_layer, activation_function=None):
     # add one more layer and return the output of this layer
     global Weights
     global biases
-    Weights = tf.Variable(tf.random_normal([in_size, out_size]))
-    biases = tf.Variable(tf.zeros([1, out_size]) + 0.1,)
-    Wx_plus_b = tf.matmul(inputs, Weights) + biases
-    if activation_function is None:
-        outputs = Wx_plus_b
-    else:
-        outputs = activation_function(Wx_plus_b)
-        
+    
+    layer_name='layer%s'%n_layer
+    with tf.name_scope(layer_name):
+        with tf.name_scope('weights'):
+             Weights = tf.Variable(tf.random_normal([in_size, out_size]))
+             #tf.summary.histogram(layer_name + '/weights', Weights)
+             
+        with tf.name_scope('biases'):         
+            biases = tf.Variable(tf.zeros([1, out_size]) + 0.1)
+            #tf.summary.histogram(layer_name + '/biases', biases)
+            
+        with tf.name_scope('Wx_plus_b'):    
+            Wx_plus_b = tf.matmul(inputs, Weights) + biases
+         
+        if activation_function is None:
+            outputs = Wx_plus_b
+        else:
+            outputs = activation_function(Wx_plus_b)   
     
     return outputs
 
@@ -117,27 +127,31 @@ def print_confusion_matrix(ds):
     #print(confusion_matrix)
     
 # define placeholder for inputs to network
-xs = tf.placeholder(tf.float32, [None, x_dimension]) # input
-ys = tf.placeholder(tf.float32, [None, y_dimension]) # output
+with tf.name_scope('inputs'):
+    xs = tf.placeholder(tf.float32, [None, x_dimension]) # input
+    ys = tf.placeholder(tf.float32, [None, y_dimension]) # output
 
 # add output layer
 mode = 2 # use 3 layer
 if (mode == 1):
     prediction = add_layer(xs, x_dimension, y_dimension, activation_function=tf.nn.softmax)
 else:
-    l1 = add_layer(xs, x_dimension, 30, activation_function=tf.nn.softmax)
-    l2 = add_layer(l1, 30, 15, activation_function=tf.nn.softmax)
-    prediction = add_layer(l2, 15, y_dimension, activation_function=tf.nn.softmax)
+    l1 = add_layer(xs, x_dimension, 30, n_layer=1, activation_function=tf.nn.softmax)
+    l2 = add_layer(l1, 30, 15, n_layer=2, activation_function=tf.nn.softmax)
+    prediction = add_layer(l2, 15, y_dimension, n_layer=3, activation_function=tf.nn.softmax)
 
 
 # the error between prediction and real data
 #cross_entropy = tf.reduce_mean(-tf.reduce_sum(ys * tf.log(prediction), reduction_indices=[1]))       # loss
-cross_entropy = tf.reduce_mean( tf.reduce_sum( tf.square(ys - prediction), reduction_indices=[1] ))
+with tf.name_scope('loss'):
+    cross_entropy = tf.reduce_mean( tf.reduce_sum( tf.square(ys - prediction), reduction_indices=[1] ))
     
-                                          
-train_step = tf.train.GradientDescentOptimizer(5.0).minimize(cross_entropy)
+with tf.name_scope('train'):                                          
+    train_step = tf.train.GradientDescentOptimizer(5.0).minimize(cross_entropy)
 
 sess = tf.Session()
+#writer = tf.summary.FileWriter("TensorBoard/", graph = sess.graph)
+
 # important step
 # tf.initialize_all_variables() no long valid from
 # 2017-03-02 if using tensorflow >= 0.12
